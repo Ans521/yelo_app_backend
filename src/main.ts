@@ -22,7 +22,9 @@ async function bootstrap() {
       next();
     });
   });
-  app.useStaticAssets(join(__dirname, '..', 'upload'), { prefix: '/upload' });
+  // Serve uploaded files: use process.cwd() so it works when run from project root (e.g. PM2)
+  const uploadPath = join(process.cwd(), 'upload');
+  app.useStaticAssets(uploadPath, { prefix: '/upload' });
   // log every request (method, path, client IP) — so we can see if the request reaches the backend
   app.use((req: Request, res: Response, next: NextFunction) => {
     const ip = req.ip ?? req.socket?.remoteAddress ?? 'unknown';
