@@ -12,9 +12,7 @@ export class MailService {
     const user = this.configService.get<string>('MAIL_USER') ?? 'anshsharma32387@gmail.com';
     const pass = this.configService.get<string>('MAIL_PASS') ?? 'gzmj xlyy pgnl vxtb';
     this.hasAuth = !!pass;
-    console.log(this.hasAuth);
-    console.log(user);
-    console.log(pass);
+   
     if (this.hasAuth) {
       this.transporter = nodemailer.createTransport({
         host: this.configService.get<string>('MAIL_HOST') ?? 'smtp.gmail.com',
@@ -28,9 +26,6 @@ export class MailService {
   async sendOtpEmail(to: string, otp: string): Promise<void> {
     if (!this.hasAuth || !this.transporter) {
       // Dev fallback: no MAIL_PASS set — log OTP to console so you can test verify-otp
-      console.log('\n--- [Mail] No MAIL_PASS in .env — OTP not sent. Use this OTP in Postman ---');
-      console.log(`Email: ${to}  |  OTP: ${otp}`);
-      console.log('---\n');
       return;
     }
 

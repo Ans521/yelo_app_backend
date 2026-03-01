@@ -1,9 +1,15 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-// import { ConfigService } from '@nestjs/config';
-// import { TypeOrmModule } from '@nestjs/typeorm';
+import { JwtModule } from '@nestjs/jwt';
+import { APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { JWT_SECRET } from './constants';
+import { CoreModule } from './core/core.module';
+import { DatabaseModule } from './database/database.module';
+import { AdminModule } from './admin/admin.module';
+import { JwtAuthGuard } from './auth/jwt-auth.guard';
+import { OptionalMulterMiddleware } from './middleware/optional-multer.middleware';
 import { OtpModule } from './otp/otp.module';
 import { RedisModule } from './redis/redis.module';
 
@@ -13,26 +19,28 @@ import { RedisModule } from './redis/redis.module';
       isGlobal: true,
       envFilePath: '.env',
     }),
-    // DB commented for now
-    // TypeOrmModule.forRootAsync({
-    //   imports: [ConfigModule],
-    //   useFactory: (configService: ConfigService) => ({
-    //     type: 'postgres',
-    //     host: configService.get<string>('DB_HOST') ?? 'localhost',
-    //     port: parseInt(configService.get<string>('DB_PORT') ?? '5432', 10),
-    //     username: configService.get<string>('DB_USERNAME') ?? 'postgres',
-    //     // pg driver requires password to be a string (never undefined)
-    //     password: configService.get<string>('DB_PASSWORD') ?? '',
-    //     database: configService.get<string>('DB_DATABASE') ?? 'yelo_app',
-    //     autoLoadEntities: true,
-    //     synchronize: configService.get<string>('NODE_ENV') !== 'production',
-    //   }),
-    //   inject: [ConfigService],
-    // }),
+    JwtModule.register({
+      global: true,
+      secret: JWT_SECRET,
+      signOptions: { expiresIn: '7d' },
+    }),
+    DatabaseModule,
     RedisModule,
+    CoreModule,
     OtpModule,
+    AdminModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+  ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(OptionalMulterMiddleware)
+      .forRoutes({ path: 'api/add-business', method: RequestMethod.POST });
+    // upload-image multer runs in main.ts so it sees correct Content-Type before other middleware
+  }
+}
