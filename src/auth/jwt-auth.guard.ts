@@ -37,7 +37,7 @@ export class JwtAuthGuard implements CanActivate {
       if (!payload.email) {
         throw new UnauthorizedException('Invalid token payload.');
       }
-      request.user = {
+      (request as { user?: { userId?: number; email: string; role: string } }).user = {
         userId: payload.userId,
         email: payload.email,
         role: payload.role ?? (payload.userId != null ? 'user' : 'admin'),

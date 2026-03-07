@@ -31,6 +31,8 @@
 $ npm install
 ```
 
+**Note:** On the server (or after a fresh clone), always run `npm install` before `npx tsc` or `npm run build`, so that dependencies like `@nestjs/passport`, `bcrypt`, `passport-jwt` and their types are installed.
+
 ## Compile and run the project
 
 ```bash
