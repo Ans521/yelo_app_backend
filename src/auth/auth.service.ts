@@ -4,9 +4,15 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import * as bcrypt from 'bcrypt';
+import { randomBytes, scrypt, timingSafeEqual } from 'crypto';
+import { promisify } from 'util';
 import { JWT_SECRET } from '../constants';
 import type { JwtPayload } from './auth.types';
+
+const scryptAsync = promisify(scrypt);
+const SALT_LEN = 16;
+const KEY_LEN = 64;
+const COST = 16384;
 
 const ACCESS_TOKEN_EXPIRY = '15m';
 const REFRESH_TOKEN_EXPIRY = '7d';
@@ -44,10 +50,16 @@ export class AuthService {
   }
 
   async hashPassword(plain: string): Promise<string> {
-    return bcrypt.hash(plain, 10);
+    const salt = randomBytes(SALT_LEN).toString('hex');
+    const key = (await scryptAsync(plain, salt, KEY_LEN)) as Buffer;
+    return `${salt}:${key.toString('hex')}`;
   }
 
   async comparePassword(plain: string, hash: string): Promise<boolean> {
-    return bcrypt.compare(plain, hash);
+    const [saltHex, keyHex] = hash.split(':');
+    if (!saltHex || !keyHex) return false;
+    const key = (await scryptAsync(plain, saltHex, KEY_LEN)) as Buffer;
+    const expected = Buffer.from(keyHex, 'hex');
+    return key.length === expected.length && timingSafeEqual(key, expected);
   }
 }
