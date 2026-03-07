@@ -17,3 +17,5 @@ export class UserGuard implements CanActivate {
     return true;
   }
 }
+
+// user guard and admin guard are used to protect routes as kii agr koi route hai jisko admin access kr skta hai but not user so waha admin gaurd lgega or vice vers.

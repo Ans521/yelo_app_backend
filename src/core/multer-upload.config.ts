@@ -8,9 +8,6 @@ export const multerUploadOptions = {
   storage: diskStorage({
     destination: (_req, _file, cb) => cb(null, uploadDir),
     filename: (_req, file, cb) => {
-      console.log('REQ BODY:', _req.body);
-     console.log('REQ HEADERS:', _req.headers);
-
       const ext = extname(file.originalname) || '.jpg';
       const name = randomBytes(12).toString('hex') + ext; // generate a random name for the file
       cb(null, name);

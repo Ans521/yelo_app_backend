@@ -18,6 +18,7 @@ export class DatabaseService implements OnModuleDestroy {
     const password = this.configService.get<string>('DB_PASSWORD') ?? '';
     const database = this.configService.get<string>('DB_DATABASE') ?? 'yelo_backend';
 
+    console.log("host: ", host, "port: ", port, "user: ", user, "password: ", password, "database: ", database);
     this.pool = mysql.createPool({
       host,
       port,

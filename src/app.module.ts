@@ -1,4 +1,4 @@
-import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { APP_GUARD } from '@nestjs/core';
@@ -8,8 +8,8 @@ import { JWT_SECRET } from './constants';
 import { CoreModule } from './core/core.module';
 import { DatabaseModule } from './database/database.module';
 import { AdminModule } from './admin/admin.module';
+import { AuthModule } from './auth/auth.module';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
-import { OptionalMulterMiddleware } from './middleware/optional-multer.middleware';
 import { OtpModule } from './otp/otp.module';
 import { RedisModule } from './redis/redis.module';
 
@@ -22,10 +22,11 @@ import { RedisModule } from './redis/redis.module';
     JwtModule.register({
       global: true,
       secret: JWT_SECRET,
-      signOptions: { expiresIn: '7d' },
+      signOptions: { expiresIn: '30d' },
     }),
     DatabaseModule,
     RedisModule,
+    AuthModule,
     CoreModule,
     OtpModule,
     AdminModule,
@@ -38,9 +39,7 @@ import { RedisModule } from './redis/redis.module';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer
-      .apply(OptionalMulterMiddleware)
-      .forRoutes({ path: 'api/add-business', method: RequestMethod.POST });
-    // upload-image multer runs in main.ts so it sees correct Content-Type before other middleware
+    // add-business uses FileFieldsInterceptor('gallery') in controller; no route-level multer middleware
+    // upload-image multer runs in main.ts
   }
 }

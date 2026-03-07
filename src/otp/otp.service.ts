@@ -1,9 +1,10 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { JwtService } from '@nestjs/jwt';
 import { MailService } from '../mail/mail.service';
 import { RedisService } from '../redis/redis.service';
 import { DatabaseService } from '../database/database.service';
+import { AuthService } from '../auth/auth.service';
+
 const OTP_LENGTH = 4;
 const OTP_EXPIRY_SECONDS = 10 * 60; // 10 minutes
 
@@ -14,7 +15,7 @@ export class OtpService {
     private readonly redis: RedisService,
     private readonly configService: ConfigService,
     private readonly db: DatabaseService,
-    private readonly jwtService: JwtService,
+    private readonly authService: AuthService,
   ) {}
 
   private generateOtp(): string {
@@ -31,25 +32,33 @@ export class OtpService {
     return otp;
   }
 
-  async getOtp(email: string): Promise<{ message: string }> {
+  async getOtp(email: string): Promise<{ message: string; accessToken: string; refreshToken: string }> {
     const otp = this.generateOtp();
     await this.redis.setOtp(email, otp, OTP_EXPIRY_SECONDS);
     await this.mailService.sendOtpEmail(email, otp);
-    const existingUser : any = await this.db.query('SELECT * FROM users WHERE email = ?', [email]);
+    const existingUser: { id: number }[] = await this.db.query('SELECT id FROM users WHERE email = ?', [email]);
+    let userId: number;
     if (existingUser && existingUser.length > 0) {
-      return { message: 'OTP sent to your email' };
+      userId = existingUser[0].id;
+    } else {
+      const result: { insertId?: number } = await this.db.query(
+        'INSERT INTO users (email) VALUES (?)',
+        [email],
+      );
+      userId = result?.insertId as number;
     }
-    const result: { insertId?: number } = await this.db.query(
-      'INSERT INTO users (email) VALUES (?)',
-      [email],
-    );
-    return { message: 'OTP sent to your email' };
+    const { accessToken, refreshToken } = this.authService.issueTokenPair({
+      userId,
+      email,
+      role: 'user'
+    });
+    return { message: 'OTP sent to your email', accessToken, refreshToken };
   }
 
   async verifyOtp(
     email: string,
     otp: string,
-  ): Promise<{ message: string; verified: boolean; token: string }> {
+  ): Promise<{ message: string; verified: boolean;}> {
     const storedOtp = await this.redis.getOtp(email);
     if (!storedOtp) {
       throw new BadRequestException('No OTP found for this email. Please request a new one.');
@@ -66,11 +75,6 @@ export class OtpService {
     if (!user) {
       throw new BadRequestException('User not found.');
     }
-    const token = this.jwtService.sign({
-      userId: user.id,
-      email: user.email,
-      role: 'user',
-    });
-    return { message: 'Email verified successfully', verified: true, token };
+    return { message: 'Email verified successfully', verified: true };
   }
 }

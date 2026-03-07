@@ -7,6 +7,7 @@ import {
 import { DatabaseService } from '../database/database.service';
 import { AddBusinessDto } from './dto/app-code.dto';
 import { EventListenerTypes } from 'typeorm/metadata/types/EventListenerTypes.js';
+import { filter } from 'rxjs';
 
 // =============================================================================
 // CONSTANTS – add your app-wide constants here
@@ -61,14 +62,15 @@ export class AppCoreService {
     return files.map((f) => `${baseUrl.replace(/\/$/, '')}/upload/${f.filename}`);
   }
 
-  async addBusiness(dto: AddBusinessDto, email: string) : Promise<{message: string}> {
+  async addBusiness(dto: AddBusinessDto, email: string) : Promise<{message: string, id: any}> {
     try {
-      console.log("dto", dto)
+      // console.log("dto", dto)
       const { id : userId } : UserRecord = await this.authenticateUser(email);
       const { business_name, categoryId, subcategoryId, address, aboutUs, services_offered, gallery } = dto;
+      console.log("gallery", gallery);
       const galleryJson = JSON.stringify(gallery ?? []);
       const query = `INSERT INTO businesses (user_id, business_name, category_id, subcategory_id, address, about_us, services_offered, gallery) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
-      await this.db.query(query, [
+      const result = await this.db.query(query, [
         userId,
         business_name,
         categoryId,
@@ -77,17 +79,18 @@ export class AppCoreService {
         aboutUs,
         JSON.stringify(services_offered),
         galleryJson,
-      ]); 
-      return { message: 'Business added successfully' };
+      ]) as { insertId : number}; 
+      return { message: 'Business added successfully', id: result?.insertId ?? 0 };
     } catch (error) {
       console.error('Error adding business:', error);
       throw new InternalServerErrorException('Failed to add business');
     }
   }
 
-  /** Get all rows from businesses with user, category, subcategory. gallery and services_offered returned as arrays. */
-  async getAllBusinesses(): Promise<{ data: any[] }> {
+  /** Get businesses for a given user. Same shape as getAllBusinesses (gallery, services_offered as arrays). */
+  async getBusinessesByUserId(userId: number): Promise<{ data: any[] }> {
     try {
+      console.log("userId: ", userId);
       const rows = await this.db.query<any[]>(
         `SELECT
               b.id AS business_id,
@@ -103,12 +106,16 @@ export class AppCoreService {
               u.name AS user_name,
               c.name AS category_name,
               sc.name AS subcategory_name,
+              sc.id AS subcategory_id,
+              c.id AS category_id,
               sc.image_url AS subcategory_image_url
         FROM businesses b
         LEFT JOIN users u ON b.user_id = u.id
         LEFT JOIN subcategories sc ON b.subcategory_id = sc.id
         LEFT JOIN categories c ON b.category_id = c.id
+        WHERE b.user_id = ?
         ORDER BY b.id DESC`,
+        [userId],
       );
       const list = Array.isArray(rows) ? rows : [];
       const data = list.map((row) => {
@@ -132,11 +139,160 @@ export class AppCoreService {
         if (!Array.isArray(services_offered)) services_offered = [];
         return { ...row, gallery, services_offered };
       });
-      console.log("data: ", data);
+      return { data };
+    } catch (error) {
+      console.error('Error fetching user businesses:', error);
+      throw new InternalServerErrorException('Failed to fetch user businesses');
+    }
+  }
+
+  /** Get all rows from businesses with user, category, subcategory. gallery and services_offered returned as arrays.
+   * Optional filters: subcatId, is_popular, is_recent (only add WHERE when provided).
+   */
+  async getAllBusinesses(filters?: {
+    subcatId?: number;
+    is_popular?: number;
+    is_recent?: number;
+  }): Promise<{ data: any[] }> {
+    try {
+      console.log("filters", filters);
+      const conditions: string[] = [];
+      const params: unknown[] = [];
+      if (filters?.subcatId && Number.isInteger(Number(filters.subcatId))) {
+        conditions.push('b.subcategory_id = ?');
+        params.push(Number(filters.subcatId));
+      }
+      if (filters?.is_popular) {
+        conditions.push('b.is_popular = ?');
+        params.push(Number(filters.is_popular));
+      }
+      if (filters?.is_recent) {
+        conditions.push('b.is_recent = ?');
+        params.push(Number(filters.is_recent));
+      }
+      const whereClause = conditions.length > 0 ? `AND ${conditions.join(' AND ')}` : '';
+
+      const rows = await this.db.query<any[]>(
+        `SELECT
+              b.id AS business_id,
+              b.business_name AS business_name,
+              b.address AS address,
+              b.about_us AS about_us,
+              b.services_offered AS services_offered,
+              b.gallery AS gallery,
+              b.is_verified AS is_verified,
+              b.is_popular AS is_popular,
+              b.is_recent AS is_recent,
+              u.email AS user_email,
+              u.name AS user_name,
+              c.name AS category_name,
+              sc.name AS subcategory_name,
+              sc.image_url AS subcategory_image_url
+        FROM businesses b
+        LEFT JOIN users u ON b.user_id = u.id
+        LEFT JOIN subcategories sc ON b.subcategory_id = sc.id
+        LEFT JOIN categories c ON b.category_id = c.id
+        WHERE is_verified = 1
+        ${whereClause}
+        ORDER BY b.id DESC`,
+        params,
+      );
+      const list = Array.isArray(rows) ? rows : [];
+      const data = list.map((row) => {
+        let gallery = row?.gallery;
+        if (typeof gallery === 'string') {
+          try {
+            gallery = JSON.parse(gallery);
+          } catch {
+            gallery = [];
+          }
+        }
+        if (!Array.isArray(gallery)) gallery = [];
+        let services_offered = row?.services_offered;
+        if (typeof services_offered === 'string') {
+          try {
+            services_offered = JSON.parse(services_offered);
+          } catch {
+            services_offered = [];
+          }
+        }
+        if (!Array.isArray(services_offered)) services_offered = [];
+        return { ...row, gallery, services_offered };
+      });
+      // console.log("data: ", data);
       return { data };
     } catch (error) {
       console.error('Error fetching businesses:', error);
       throw new InternalServerErrorException('Failed to fetch businesses');
+    }
+  }
+
+  /** Update a business. Verifies the business belongs to the authenticated user. */
+  async updateBusiness(
+    businessId: number,
+    dto: Partial<AddBusinessDto>,
+    email: string,
+  ): Promise<{ message: string }> {
+    try {
+      console.log("Yeah Hit Api")
+      const id = Number(businessId);
+      if (!Number.isInteger(id) || id <= 0) {
+        throw new BadRequestException('Valid businessId is required');
+      }
+      console.log("dto first", dto)
+      const { id: userId } = await this.authenticateUser(email);
+      const { business_name, categoryId, subcategoryId, address, aboutUs, services_offered, gallery } = dto;
+      const existing = await this.db.query<{ user_id: number }[]>(
+        'SELECT user_id FROM businesses WHERE id = ? LIMIT 1',
+        [id],
+      );
+      const row = existing?.[0];
+      if (!row || row.user_id !== userId) {
+        throw new BadRequestException('Business not found or access denied');
+      }
+      const updates: string[] = [];
+      const params: unknown[] = [];
+      if (business_name !== undefined) {
+        updates.push('business_name = ?');
+        params.push(business_name);
+      }
+      if (categoryId !== undefined) {
+        updates.push('category_id = ?');
+        params.push(categoryId);
+      }
+      if (subcategoryId !== undefined) {
+        updates.push('subcategory_id = ?');
+        params.push(subcategoryId);
+      }
+      if (address !== undefined) {
+        updates.push('address = ?');
+        params.push(address);
+      }
+      if (aboutUs !== undefined) {
+        updates.push('about_us = ?');
+        params.push(aboutUs);
+      }
+      if (services_offered !== undefined) {
+        updates.push('services_offered = ?');
+        params.push(JSON.stringify(services_offered));
+      }
+      if (gallery !== undefined) {
+        updates.push('gallery = ?');
+        params.push(JSON.stringify(gallery));
+      }
+      if (updates.length === 0) {
+        throw new BadRequestException('At least one field to update is required');
+      }
+      params.push(id);
+      await this.db.query(
+        `UPDATE businesses SET ${updates.join(', ')} WHERE id = ?`,
+        params,
+      );
+      return { message: 'Business updated successfully' };
+    } catch (error) {
+      if (error instanceof BadRequestException) throw error;
+      console.error('Error updating business:', error);
+      throw new InternalServerErrorException('Failed to update business');
     }
   }
 
@@ -201,6 +357,67 @@ export class AppCoreService {
       if (error instanceof BadRequestException) throw error;
       console.error('Error deleting business:', error);
       throw new InternalServerErrorException('Failed to delete business');
+    }
+  }
+
+  /** Delete user profile and all their businesses. Call with userId from req.user. */
+  async deleteProfile(userId: number): Promise<{ message: string }> {
+    try {
+      const id = Number(userId);
+      if (!Number.isInteger(id) || id <= 0) {
+        throw new BadRequestException('Valid user is required');
+      }
+      await this.db.query('DELETE FROM businesses WHERE user_id = ?', [id]);
+      const result = await this.db.query('DELETE FROM users WHERE id = ?', [id]) as { affectedRows?: number };
+      const affected = (result as any)?.affectedRows ?? 0;
+      if (affected === 0) {
+        throw new BadRequestException('User not found');
+      }
+      return { message: 'Profile deleted successfully' };
+    } catch (error) {
+      if (error instanceof BadRequestException) throw error;
+      console.error('Error deleting profile:', error);
+      throw new InternalServerErrorException('Failed to delete profile');
+    }
+  }
+
+  /** Update user info (name, email, phone_no). Only provided fields are updated. */
+  async updateUserInfo(
+    userId: number,
+    payload: { name?: string; email?: string; phone_no?: string },
+  ): Promise<{ message: string }> {
+    try {
+      const id = Number(userId);
+      if (!Number.isInteger(id) || id <= 0) {
+        throw new BadRequestException('Valid user is required');
+      }
+      const updates: string[] = [];
+      const params: unknown[] = [];
+      if (payload.name !== undefined) {
+        updates.push('name = ?');
+        params.push(payload.name);
+      }
+      if (payload.email !== undefined) {
+        updates.push('email = ?');
+        params.push(payload.email);
+      }
+      if (payload.phone_no !== undefined) {
+        updates.push('phoneno = ?');
+        params.push(payload.phone_no);
+      }
+      if (updates.length === 0) {
+        throw new BadRequestException('At least one of name, email, phone_no is required');
+      }
+      params.push(id);
+      await this.db.query(
+        `UPDATE users SET ${updates.join(', ')} WHERE id = ?`,
+        params,
+      );
+      return { message: 'User info updated successfully' };
+    } catch (error) {
+      if (error instanceof BadRequestException) throw error;
+      console.error('Error updating user info:', error);
+      throw new InternalServerErrorException('Failed to update user info');
     }
   }
 
@@ -448,27 +665,163 @@ export class AppCoreService {
       throw new InternalServerErrorException('Failed to delete category');
     }
   }
+
+  /** Get subcategories (grouped as categories), popular businesses (max 5), recent businesses (max 5). */
+  async getAllSubcategories(): Promise<{
+    subcategories: any[];
+    popular_businesses: any[];
+    recent_businesses: any[];
+  }> {
+    try {
+      const subcatRows = await this.db.query<any[]>(
+        `SELECT
+              sc.id AS subcategory_id,
+              sc.name AS subcategory_name,
+              sc.image_url
+        FROM subcategories sc
+        ORDER BY sc.created_at ASC
+        LIMIT 15`,
+      );
+      const subcategories = Array.isArray(subcatRows) ? subcatRows  : [];
+      const businessSelect = `SELECT
+              b.id AS business_id,
+              b.business_name AS business_name,
+              b.address AS address,
+              b.about_us AS about_us,
+              b.services_offered AS services_offered,
+              b.gallery AS gallery,
+              b.is_verified AS is_verified,
+              b.is_popular AS is_popular,
+              b.is_recent AS is_recent,
+              u.phoneno as phone_no
+        FROM businesses b
+        LEFT JOIN users u ON b.user_id = u.id`
+      const popularRows = await this.db.query<any[]>(
+        `${businessSelect} WHERE b.is_popular = 1 AND is_verified = 1 ORDER BY b.id DESC`,
+      );
+      const recentRows = await this.db.query<any[]>(
+        `${businessSelect} WHERE b.is_recent = 1 AND is_verified = 1 ORDER BY b.id DESC`,
+      );
+
+      const mapBusinessRow = (row: any) => {
+        let gallery = row?.gallery;
+        if (typeof gallery === 'string') {
+          try {
+            gallery = JSON.parse(gallery);
+          } catch {
+            gallery = [];
+          }
+        }
+        if (!Array.isArray(gallery)) gallery = [];
+        let services_offered = row?.services_offered;
+        if (typeof services_offered === 'string') {
+          try {
+            services_offered = JSON.parse(services_offered);
+          } catch {
+            services_offered = [];
+          }
+        }
+        if (!Array.isArray(services_offered)) services_offered = [];
+        return { ...row, gallery, services_offered };
+      };
+
+      const popular_businesses = (Array.isArray(popularRows) ? popularRows : []).map(mapBusinessRow);
+      const recent_businesses = (Array.isArray(recentRows) ? recentRows : []).map(mapBusinessRow);
+
+      return {
+        subcategories,
+        popular_businesses,
+        recent_businesses,
+      };
+    } catch (error) {
+      console.error('Error in getAllSubcategories:', error);
+      throw new InternalServerErrorException('Failed to fetch subcategories and businesses');
+    }
+  }
+
+  async getBusinessById(businessId : number): Promise<any> {
+    try{
+      console.log("businessId: ", businessId);
+      const query = `
+                      SELECT 
+                      businesses.*,
+                      users.phoneno as phone_no
+                      FROM businesses
+                      LEFT JOIN users ON businesses.user_id = users.id
+                      where businesses.id = ?     
+                    `
+      const result : any = await this.db.query(query, [businessId]);
+
+      if(result.length === 0){
+        throw new BadRequestException('Business not found');
+      }
+
+      const gallery = result[0].gallery;
+      if(typeof gallery === 'string'){
+        try{
+          result[0].gallery = JSON.parse(gallery);
+        }catch(error){
+          result[0].gallery = [];
+        }
+      }
+      if(typeof result[0].services_offered === 'string'){
+        try{
+          result[0].services_offered = JSON.parse(result[0].services_offered);
+        }catch(error){
+          result[0].services_offered = [];
+        }
+      }
+      const similarBusinesses = await this.db.query<any[]>(
+        `SELECT 
+              businesses.id as business_id,
+              businesses.business_name as business_name,
+              businesses.address as address,
+              businesses.gallery as gallery,
+              users.phoneno as phone_no
+        FROM businesses
+        LEFT JOIN users ON businesses.user_id = users.id
+        WHERE businesses.category_id = ? AND businesses.id != ? AND businesses.is_verified = 1 ORDER BY businesses.id DESC LIMIT 5`,
+        [result[0].category_id, businessId],
+      );
+      if(similarBusinesses.length > 0){
+        for(const business of similarBusinesses){
+          if(typeof business.gallery === 'string'){
+            try{
+              business.gallery = JSON.parse(business.gallery);
+            }catch(error){
+              business.gallery = [];
+            }
+          }
+        }
+      }
+      console.log("similarBusinesses: ", similarBusinesses);
+      return { data: result[0], similar_businesses: similarBusinesses};
+    }catch(error){
+      console.error('Error in getBusiness:', error);
+      throw new InternalServerErrorException('Failed to fetch business');
+    }
+  }
 }
 
-  async function transformCategories(result : any) {
-    console.log("result: ", result);
-    const categoryMap = {} as any;
-  
-    result.forEach((row : any) => {
-      if (!categoryMap[row.category_id]) {
-        categoryMap[row.category_id] = {
-          category_id: row.category_id,
-          category_name: row.category_name,
-          subcategories: []
-        };
-      }
-      if(row.subcategory_id) {
-        categoryMap[row.category_id].subcategories.push({
-          subcategory_id: row.subcategory_id,
-          subcategory_name: row.subcategory_name,
-          image_url: row.image_url
-        });
-      }
-    });
-    return Object.values(categoryMap);
-  }
+async function transformCategories(result : any) {
+  console.log("result: ", result);
+  const categoryMap = {} as any;
+
+  result.forEach((row : any) => {
+    if (!categoryMap[row.category_id]) {
+      categoryMap[row.category_id] = {
+        category_id: row.category_id,
+        category_name: row.category_name,
+        subcategories: []
+      }; 
+    }
+    if(row.subcategory_id) {
+      categoryMap[row.category_id].subcategories.push({
+        subcategory_id: row.subcategory_id,
+        subcategory_name: row.subcategory_name,
+        image_url: row.image_url
+      });
+    }
+  });
+  return Object.values(categoryMap);
+}

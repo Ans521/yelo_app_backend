@@ -1,3 +1,16 @@
+-- Categories (ids 9 and 11 used by businesses below)
+INSERT INTO categories (id, name, created_at) VALUES
+  (9, 'Food & Dining', NOW()),
+  (11, 'Technology', NOW())
+ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+-- Subcategories: 10 under category 9; 12, 13 under category 11
+INSERT INTO subcategories (id, name, category_id, created_at, image_url, is_main) VALUES
+  (10, 'Cafe & Restaurants', 9, NOW(), NULL, 0),
+  (12, 'IT Services', 11, NOW(), NULL, 0),
+  (13, 'Software', 11, NOW(), NULL, 0)
+ON DUPLICATE KEY UPDATE name = VALUES(name), category_id = VALUES(category_id);
+
 -- New users (email only; id is auto)
 INSERT INTO users (email) VALUES
   ('demo1@yelo.com'),
