@@ -136,6 +136,13 @@ export class AppCoreController {
     return this.appCoreService.getCategoriesWithSubcategories();
   }
 
+  @Post('search')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  async searchBusinesses(@Body() body: { cat?: string; subcat?: string }) {
+    return this.appCoreService.searchBusinessesByCategoryOrSubcategory(body);
+  }
+
   @Get('get-all-business')
   @Public()
   @HttpCode(HttpStatus.OK)
@@ -153,6 +160,7 @@ export class AppCoreController {
 
   @Get('get-user-businesses')
   @UseGuards(UserGuard)
+  @Public()
   @HttpCode(HttpStatus.OK)
   async getUserBusinesses(@Req() req: Request) {
     const user = (req as any).user as { userId?: number; email: string };
@@ -233,7 +241,8 @@ export class AppCoreController {
     return this.appCoreService.deleteCategory(Number(categoryId), Number(subcategoryId), isCategory);
   }
 
-  @Get('home-feed')  
+  @Get('home-feed')
+  @Public()
   async getAllSubcat(){
     return this.appCoreService.getAllSubcategories();
   }

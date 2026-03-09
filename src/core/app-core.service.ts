@@ -801,6 +801,105 @@ export class AppCoreService {
       throw new InternalServerErrorException('Failed to fetch business');
     }
   }
+
+  /**
+   * Search businesses by category and/or subcategory name.
+   * Payload: { cat?: string, subcat?: string } — at least one required.
+   * Resolves category/subcategory IDs from names, then returns businesses with business_id, business_name, address, gallery, phone_no.
+   */
+  async searchBusinessesByCategoryOrSubcategory(payload: { cat?: string; subcat?: string }): Promise<{
+    businesses: Array<{
+      business_id: number;
+      business_name: string;
+      address: string;
+      gallery: string[];
+      phone_no: string | null;
+    }>;
+  }> {
+    console.log("payload: ", payload);
+    const { cat, subcat } = payload ?? {};
+    console.log("cat: ", cat);
+    console.log("subcat: ", subcat);
+    const hasCat = cat != null && String(cat).trim() !== '';
+    console.log("hasCat: ", String(cat));
+    const hasSubcat = subcat != null && String(subcat).trim() !== '';
+    if (!hasCat && !hasSubcat) {
+      throw new BadRequestException('At least one of cat or subcat is required');
+    }
+    let categoryIds: number[] = [];
+    let subcategoryIds: number[] = [];
+    console.log("hasCat: ", hasCat);
+    if (hasCat) {
+      const catRows = await this.db.query<{ id: number }[]>(
+        'SELECT id FROM categories WHERE name LIKE ?',
+        [`%${String(cat).toLowerCase().trim()}%`],
+      );
+      categoryIds = (catRows ?? []).map((r) => r.id);
+    }
+    console.log("categoryIds: ", categoryIds);
+    if (hasSubcat) {
+      const subcatRows = await this.db.query<{ id: number }[]>(
+        'SELECT id FROM subcategories WHERE name LIKE ?',
+        [`%${String(subcat).toLowerCase().trim()}%`],
+      );
+      subcategoryIds = (subcatRows ?? []).map((r) => r.id);
+    }
+    console.log("subcategoryIds: ", subcategoryIds);
+
+    const hasCategoryIds = categoryIds.length > 0;
+    const hasSubcategoryIds = subcategoryIds.length > 0;
+    if (!hasCategoryIds && !hasSubcategoryIds) {
+      return { businesses: [] };
+    }
+    const conditions: string[] = [];
+    const params: number[] = [];
+    if (hasCategoryIds) {
+      const placeholders = categoryIds.map(() => '?').join(', ');
+      conditions.push(`businesses.category_id IN (${placeholders})`);
+      params.push(...categoryIds);
+    }
+    if (hasSubcategoryIds) {
+      const placeholders = subcategoryIds.map(() => '?').join(', ');
+      conditions.push(`businesses.subcategory_id IN (${placeholders})`);
+      params.push(...subcategoryIds);
+    }
+    const whereClause = conditions.join(' OR ');
+    console.log("whereClause: ", whereClause);
+    const rows = await this.db.query<any[]>(
+      `SELECT 
+        businesses.id as business_id,
+        businesses.business_name as business_name,
+        businesses.address as address,
+        businesses.gallery as gallery,
+        users.phoneno as phone_no
+      FROM businesses
+      LEFT JOIN users ON businesses.user_id = users.id
+      WHERE (${whereClause}) AND businesses.is_verified = 1
+      ORDER BY businesses.id DESC`,
+      params,
+    );
+
+    const businesses = (rows ?? []).map((row) => {
+      let gallery = row.gallery;
+      if (typeof gallery === 'string') {
+        try {
+          gallery = JSON.parse(gallery);
+        } catch {
+          gallery = [];
+        }
+      }
+      if (!Array.isArray(gallery)) gallery = [];
+      return {
+        business_id: row.business_id,
+        business_name: row.business_name,
+        address: row.address,
+        gallery,
+        phone_no: row.phone_no ?? null,
+      };
+    });
+    console.log("businesses: ", businesses);
+    return { businesses };
+  }
 }
 
 async function transformCategories(result : any) {
