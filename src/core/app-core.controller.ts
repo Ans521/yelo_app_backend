@@ -38,6 +38,7 @@ export class AppCoreController {
 
   @Post('add-business')
   @UseGuards(UserGuard)
+  @UseInterceptors(AnyFilesInterceptor())
   // @UseInterceptors(
   //   FileFieldsInterceptor([{ name: 'gallery', maxCount: 100 }], multerUploadOptions),
   // )
@@ -90,13 +91,13 @@ export class AppCoreController {
 
   @Post('add-banner')
   @Public()
-  async addBanner(@Body() body: Record<string, string>) {
-    console.log("body: ", body);
-    const { tittle, message, imageUrl } : any = body.data;
-    if (!tittle || !message || !imageUrl) {
-      throw new BadRequestException('Missing required fields: tittle, message, imageUrl');
+  async addBanner(@Body() body: { link?: string; imageUrl?: string; data?: { link?: string; imageUrl?: string } }) {
+    const payload = body.data ?? body;
+    const { link, imageUrl } = payload;
+    if (!link || !imageUrl) {
+      throw new BadRequestException('Missing required fields: link, imageUrl');
     }
-    return this.appCoreService.addBanner(tittle, message, imageUrl);
+    return this.appCoreService.addBanner(link, imageUrl);
   }
 
   @Get('get-all-banner')
@@ -160,7 +161,6 @@ export class AppCoreController {
 
   @Get('get-user-businesses')
   @UseGuards(UserGuard)
-  @Public()
   @HttpCode(HttpStatus.OK)
   async getUserBusinesses(@Req() req: Request) {
     const user = (req as any).user as { userId?: number; email: string };

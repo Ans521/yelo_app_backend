@@ -62,15 +62,14 @@ export class AppCoreService {
     return files.map((f) => `${baseUrl.replace(/\/$/, '')}/upload/${f.filename}`);
   }
 
-  async addBusiness(dto: AddBusinessDto, email: string) : Promise<{message: string, id: any}> {
+  async addBusiness(dto: any, email: string) : Promise<{message: string, id: any}> {
     try {
-      // console.log("dto", dto)
+      console.log("dto", dto)
       const { id : userId } : UserRecord = await this.authenticateUser(email);
-      console.log("dto", dto);
-      const { business_name, categoryId, subcategoryId, address, aboutUs, services_offered, gallery } = dto;
+      const { business_name, categoryId, subcategoryId, address, aboutUs, services_offered, gallery , phone_no} = dto;
       console.log("gallery", gallery);
       const galleryJson = JSON.stringify(gallery ?? []);
-      const query = `INSERT INTO businesses (user_id, business_name, category_id, subcategory_id, address, about_us, services_offered, gallery) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
+      const query = `INSERT INTO businesses (user_id, business_name, category_id, subcategory_id, address, about_us, services_offered, gallery, phone_no) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
       const result = await this.db.query(query, [
         userId,
         business_name,
@@ -80,6 +79,7 @@ export class AppCoreService {
         aboutUs,
         JSON.stringify(services_offered),
         galleryJson,
+        phone_no
       ]) as { insertId : number}; 
       return { message: 'Business added successfully', id: result?.insertId ?? 0 };
     } catch (error) {
@@ -91,7 +91,6 @@ export class AppCoreService {
   /** Get businesses for a given user. Same shape as getAllBusinesses (gallery, services_offered as arrays). */
   async getBusinessesByUserId(userId: number): Promise<{ data: any[] }> {
     try {
-      console.log("userId: ", userId);
       const rows = await this.db.query<any[]>(
         `SELECT
               b.id AS business_id,
@@ -103,6 +102,7 @@ export class AppCoreService {
               b.is_verified AS is_verified,
               b.is_popular AS is_popular,
               b.is_recent AS is_recent,
+              b.phone_no AS phone_no,
               u.email AS user_email,
               u.name AS user_name,
               c.name AS category_name,
@@ -133,13 +133,14 @@ export class AppCoreService {
         if (typeof services_offered === 'string') {
           try {
             services_offered = JSON.parse(services_offered);
+            console.log("services_offered fucking here", services_offered);
           } catch {
             services_offered = [];
           }
         }
-        if (!Array.isArray(services_offered)) services_offered = [];
         return { ...row, gallery, services_offered };
       });
+      console.log("data fucking here", data);
       return { data };
     } catch (error) {
       console.error('Error fetching user businesses:', error);
@@ -240,15 +241,14 @@ export class AppCoreService {
       if (!Number.isInteger(id) || id <= 0) {
         throw new BadRequestException('Valid businessId is required');
       }
-      console.log("dto first", dto)
-      const { id: userId } = await this.authenticateUser(email);
+      // const { id: userId } = await this.authenticateUser(email);
       const { business_name, categoryId, subcategoryId, address, aboutUs, services_offered, gallery } = dto;
       const existing = await this.db.query<{ user_id: number }[]>(
         'SELECT user_id FROM businesses WHERE id = ? LIMIT 1',
         [id],
       );
       const row = existing?.[0];
-      if (!row || row.user_id !== userId) {
+      if (!row) {
         throw new BadRequestException('Business not found or access denied');
       }
       const updates: string[] = [];
@@ -443,15 +443,15 @@ export class AppCoreService {
     }
   }
 
-  async addBanner(tittle: string, message: string, imageUrl: string): Promise<{ message: string; data: { tittle: string; message: string; imageUrl: string } }> {
+  async addBanner(link: string, imageUrl: string): Promise<{ message: string; data: { link: string; imageUrl: string } }> {
     try {
       await this.db.query(
-        'INSERT INTO banners (tittle, message, image_url) VALUES (?, ?, ?)',
-        [tittle, message, imageUrl],
+        'INSERT INTO banners (link, image_url) VALUES (?, ?)',
+        [link, imageUrl],
       );
       return {
         message: 'Banner added successfully',
-        data: { tittle, message, imageUrl },
+        data: { link, imageUrl },
       };
     } catch (error) {
       console.error('Error adding banner:', error);
@@ -464,8 +464,7 @@ export class AppCoreService {
       const banners = await this.db.query(
         `SELECT 
             id, 
-            tittle, 
-            message, 
+            link, 
             image_url, 
             is_main 
         FROM banners 
