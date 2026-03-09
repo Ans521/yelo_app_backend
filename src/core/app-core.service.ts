@@ -66,6 +66,7 @@ export class AppCoreService {
     try {
       // console.log("dto", dto)
       const { id : userId } : UserRecord = await this.authenticateUser(email);
+      console.log("dto", dto);
       const { business_name, categoryId, subcategoryId, address, aboutUs, services_offered, gallery } = dto;
       console.log("gallery", gallery);
       const galleryJson = JSON.stringify(gallery ?? []);
