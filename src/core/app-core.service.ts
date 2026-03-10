@@ -172,7 +172,7 @@ export class AppCoreService {
         conditions.push('b.is_recent = ?');
         params.push(Number(filters.is_recent));
       }
-      const whereClause = conditions.length > 0 ? `AND ${conditions.join(' AND ')}` : '';
+      const whereClause = conditions.length > 0 ? `WHERE is_verified = 1 AND ${conditions.join(' AND ')}` : '';
 
       const rows = await this.db.query<any[]>(
         `SELECT
@@ -194,7 +194,6 @@ export class AppCoreService {
         LEFT JOIN users u ON b.user_id = u.id
         LEFT JOIN subcategories sc ON b.subcategory_id = sc.id
         LEFT JOIN categories c ON b.category_id = c.id
-        WHERE is_verified = 1
         ${whereClause}
         ORDER BY b.id DESC`,
         params,
