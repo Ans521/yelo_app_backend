@@ -340,6 +340,35 @@ export class AppCoreService {
     }
   }
 
+  /** Submit or update a review for a business. Always overwrites the previous review. */
+  async submitReview(businessId: number, review: string): Promise<{ message: string }> {
+    try {
+      const id = Number(businessId);
+      if (!Number.isInteger(id) || id <= 0) {
+        throw new BadRequestException('Valid businessId is required');
+      }
+      if (!review || !String(review).trim()) {
+        throw new BadRequestException('review is required');
+      }
+
+      const result = await this.db.query('UPDATE businesses SET review = ? WHERE id = ?', [
+        String(review).trim(),
+        id,
+      ]) as { affectedRows?: number };
+
+      const affected = (result as any)?.affectedRows ?? 0;
+      if (affected === 0) {
+        throw new BadRequestException('Business not found');
+      }
+
+      return { message: 'Review submitted successfully' };
+    } catch (error) {
+      if (error instanceof BadRequestException) throw error;
+      console.error('Error submitting review:', error);
+      throw new InternalServerErrorException('Failed to submit review');
+    }
+  }
+
   /** Delete a business by business_id. */
   async deleteBusiness(businessId: number): Promise<{ message: string }> {
     try {

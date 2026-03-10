@@ -194,6 +194,20 @@ export class AppCoreController {
     });
   }
 
+  @Post('submit-review')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  async submitReview(@Body() body: { businessId?: number | string; review?: string }) {
+    const { businessId, review } = body;
+    if (businessId == null || businessId === undefined) {
+      throw new BadRequestException('businessId is required');
+    }
+    if (!review || !String(review).trim()) {
+      throw new BadRequestException('review is required');
+    }
+    return this.appCoreService.submitReview(Number(businessId), String(review));
+  }
+
   @Post('delete-business')
   @Public()
   async deleteBusiness(@Body() body: { business_id?: number }) {
