@@ -775,7 +775,10 @@ export class AppCoreService {
             gallery = [];
           }
         }
-        if (!Array.isArray(gallery)) gallery = [];
+        if (!Array.isArray(gallery)) {
+          gallery = [];
+          console.log("gir gya jaal mei");
+        }
         let services_offered = row?.services_offered;
         if (typeof services_offered === 'string') {
           try {
