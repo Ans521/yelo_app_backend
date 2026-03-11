@@ -898,8 +898,6 @@ export class AppCoreService {
         businesses.business_name as business_name,
         businesses.address as address,
         businesses.gallery as gallery,
-        businesses.lat as lat,
-        businesses.\`long\` as long,
         users.phoneno as phone_no,
         ( 6371 * acos( LEAST(1, GREATEST(-1,
           cos(radians(?)) * cos(radians(businesses.lat)) * cos(radians(businesses.\`long\`) - radians(?))
@@ -909,8 +907,6 @@ export class AppCoreService {
         businesses.business_name as business_name,
         businesses.address as address,
         businesses.gallery as gallery,
-        businesses.lat as lat,
-        businesses.\`long\` as long,
         users.phoneno as phone_no`;
 
     const orderClause = hasUserLocation
@@ -936,8 +932,6 @@ export class AppCoreService {
         address: row.address,
         gallery,
         phone_no: row.phone_no ?? null,
-        lat: row.lat != null ? Number(row.lat) : null,
-        long: row.long != null ? Number(row.long) : null,
         ...(row.distance_km != null && { distance_km: Number(row.distance_km) }),
       };
     });
