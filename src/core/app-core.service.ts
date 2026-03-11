@@ -764,10 +764,14 @@ export class AppCoreService {
 
       const mapBusinessRow = (row: any) => {
         let gallery = row?.gallery;
+        console.log("gallery: ", gallery);
         if (typeof gallery === 'string') {
+          console.log("gallery is string: ", gallery);
           try {
             gallery = JSON.parse(gallery);
+            console.log("gallery is parsed: ", gallery);
           } catch {
+            console.log("gallery is not parsed: ", gallery);
             gallery = [];
           }
         }
@@ -776,7 +780,9 @@ export class AppCoreService {
         if (typeof services_offered === 'string') {
           try {
             services_offered = JSON.parse(services_offered);
+            console.log("services_offered is parsed: ", services_offered);
           } catch {
+            console.log("services_offered is not parsed: ", services_offered);
             services_offered = [];
           }
         }
@@ -787,6 +793,9 @@ export class AppCoreService {
       const popular_businesses = (Array.isArray(popularRows) ? popularRows : []).map(mapBusinessRow);
       const recent_businesses = (Array.isArray(recentRows) ? recentRows : []).map(mapBusinessRow);
 
+
+      console.log("popular_businesses: ", popular_businesses);
+      console.log("recent_businesses: ", recent_businesses);
       return {
         subcategories,
         popular_businesses,
