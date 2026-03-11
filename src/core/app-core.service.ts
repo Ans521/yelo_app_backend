@@ -26,6 +26,29 @@ export interface UserRecord {
 // HELPER FUNCTIONS – pure functions you use across the app (optional: move to a separate file later)
 // =============================================================================
 
+/** Parse JSON array from DB: handles Buffer, string, double-encoded JSON, or already array. Returns array. */
+function parseJsonArray(value: unknown): any[] {
+  if (Array.isArray(value)) return value;
+  let v = value;
+  if (Buffer.isBuffer(v)) v = v.toString('utf8');
+  while (typeof v === 'string') {
+    try {
+      v = JSON.parse(v);
+    } catch {
+      return [];
+    }
+  }
+  return Array.isArray(v) ? v : [];
+}
+
+function parseGallery(value: unknown): any[] {
+  return parseJsonArray(value);
+}
+
+function parseServicesOffered(value: unknown): any[] {
+  return parseJsonArray(value);
+}
+
 // =============================================================================
 // APP CORE SERVICE – main place for your business logic
 // Inject this service in controllers or other services when you need this logic.
@@ -122,27 +145,10 @@ export class AppCoreService {
       );
       const list = Array.isArray(rows) ? rows : [];
       const data = list.map((row) => {
-        let gallery = row?.gallery;
-        if (typeof gallery === 'string') {
-          try {
-            gallery = JSON.parse(gallery);
-          } catch {
-            gallery = [];
-          }
-        }
-        if (!Array.isArray(gallery)) gallery = [];
-        let services_offered = row?.services_offered;
-        if (typeof services_offered === 'string') {
-          try {
-            services_offered = JSON.parse(services_offered);
-            console.log("services_offered fucking here", services_offered);
-          } catch {
-            services_offered = [];
-          }
-        }
+        const gallery = parseGallery(row?.gallery);
+        const services_offered = parseServicesOffered(row?.services_offered);
         return { ...row, gallery, services_offered };
       });
-      console.log("data fucking here", data);
       return { data };
     } catch (error) {
       console.error('Error fetching user businesses:', error);
@@ -202,27 +208,10 @@ export class AppCoreService {
       );
       const list = Array.isArray(rows) ? rows : [];
       const data = list.map((row) => {
-        let gallery = row?.gallery;
-        if (typeof gallery === 'string') {
-          try {
-            gallery = JSON.parse(gallery);
-          } catch {
-            gallery = [];
-          }
-        }
-        if (!Array.isArray(gallery)) gallery = [];
-        let services_offered = row?.services_offered;
-        if (typeof services_offered === 'string') {
-          try {
-            services_offered = JSON.parse(services_offered);
-          } catch {
-            services_offered = [];
-          }
-        }
-        if (!Array.isArray(services_offered)) services_offered = [];
+        const gallery = parseGallery(row?.gallery);
+        const services_offered = parseServicesOffered(row?.services_offered);
         return { ...row, gallery, services_offered };
       });
-      // console.log("data: ", data);
       return { data };
     } catch (error) {
       console.error('Error fetching businesses:', error);
@@ -763,38 +752,8 @@ export class AppCoreService {
       );
 
       const mapBusinessRow = (row: any) => {
-        let gallery = row?.gallery;
-        console.log("gallery: ", gallery);
-        if (typeof gallery === 'string') {
-          console.log("gallery is string: ", gallery);
-          try {
-            gallery = JSON.parse(gallery);
-            console.log("gallery is parsed: ", gallery);
-          } catch {
-            console.log("gallery is not parsed: ", gallery);
-            gallery = [];
-          }
-
-        }
-        console.log("type of gallery: ", typeof gallery);
-        console.log("gallery is array: ", Array.isArray(gallery));
-        gallery = JSON.parse(gallery);
-        console.log("gallery is stringified: ", typeof gallery);
-        if (!Array.isArray(gallery)) {
-          gallery = [];
-          console.log("gir gya jaal mei");
-        }
-        let services_offered = row?.services_offered;
-        if (typeof services_offered === 'string') {
-          try {
-            services_offered = JSON.parse(services_offered);
-            console.log("services_offered is parsed: ", services_offered);
-          } catch {
-            console.log("services_offered is not parsed: ", services_offered);
-            services_offered = [];
-          }
-        }
-        if (!Array.isArray(services_offered)) services_offered = [];
+        const gallery = parseGallery(row?.gallery);
+        const services_offered = parseServicesOffered(row?.services_offered);
         return { ...row, gallery, services_offered };
       };
 
@@ -832,21 +791,8 @@ export class AppCoreService {
         throw new BadRequestException('Business not found');
       }
 
-      const gallery = result[0].gallery;
-      if(typeof gallery === 'string'){
-        try{
-          result[0].gallery = JSON.parse(gallery);
-        }catch(error){
-          result[0].gallery = [];
-        }
-      }
-      if(typeof result[0].services_offered === 'string'){
-        try{
-          result[0].services_offered = JSON.parse(result[0].services_offered);
-        }catch(error){
-          result[0].services_offered = [];
-        }
-      }
+      result[0].gallery = parseGallery(result[0].gallery);
+      result[0].services_offered = parseServicesOffered(result[0].services_offered);
       const similarBusinesses = await this.db.query<any[]>(
         `SELECT 
               businesses.id as business_id,
@@ -859,15 +805,9 @@ export class AppCoreService {
         WHERE businesses.category_id = ? AND businesses.id != ? AND businesses.is_verified = 1 ORDER BY businesses.id DESC LIMIT 5`,
         [result[0].category_id, businessId],
       );
-      if(similarBusinesses.length > 0){
-        for(const business of similarBusinesses){
-          if(typeof business.gallery === 'string'){
-            try{
-              business.gallery = JSON.parse(business.gallery);
-            }catch(error){
-              business.gallery = [];
-            }
-          }
+      if (similarBusinesses.length > 0) {
+        for (const business of similarBusinesses) {
+          business.gallery = parseGallery(business.gallery);
         }
       }
       console.log("similarBusinesses: ", similarBusinesses);
@@ -989,15 +929,7 @@ export class AppCoreService {
     );
 
     const businesses = (rows ?? []).map((row) => {
-      let gallery = row.gallery;
-      if (typeof gallery === 'string') {
-        try {
-          gallery = JSON.parse(gallery);
-        } catch {
-          gallery = [];
-        }
-      }
-      if (!Array.isArray(gallery)) gallery = [];
+      const gallery = parseGallery(row.gallery);
       return {
         business_id: row.business_id,
         business_name: row.business_name,
