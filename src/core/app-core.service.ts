@@ -778,7 +778,7 @@ export class AppCoreService {
         }
         console.log("type of gallery: ", typeof gallery);
         console.log("gallery is array: ", Array.isArray(gallery));
-        gallery = JSON.stringify(gallery);
+        gallery = JSON.parse(gallery);
         console.log("gallery is stringified: ", typeof gallery);
         if (!Array.isArray(gallery)) {
           gallery = [];
