@@ -2,6 +2,7 @@ import {
   IsArray,
   IsBoolean,
   IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   IsUrl,
@@ -61,4 +62,12 @@ export class AddBusinessDto {
   @IsOptional()
   @IsBoolean()
   is_recent?: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  lat?: number;
+
+  @IsOptional()
+  @IsNumber()
+  long?: number;
 }

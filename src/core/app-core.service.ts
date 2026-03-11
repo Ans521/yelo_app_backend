@@ -66,10 +66,10 @@ export class AppCoreService {
     try {
       console.log("dto", dto)
       const { id : userId } : UserRecord = await this.authenticateUser(email);
-      const { business_name, categoryId, subcategoryId, address, aboutUs, services_offered, gallery , phone_no} = dto;
+      const { business_name, categoryId, subcategoryId, address, aboutUs, services_offered, gallery , phone_no, lat, long } = dto;
       console.log("gallery", gallery);
       const galleryJson = JSON.stringify(gallery ?? []);
-      const query = `INSERT INTO businesses (user_id, business_name, category_id, subcategory_id, address, about_us, services_offered, gallery, phone_no) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      const query = `INSERT INTO businesses (user_id, business_name, category_id, subcategory_id, address, about_us, services_offered, gallery, phone_no, lat, \`long\`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
       const result = await this.db.query(query, [
         userId,
         business_name,
@@ -79,7 +79,9 @@ export class AppCoreService {
         aboutUs,
         JSON.stringify(services_offered),
         galleryJson,
-        phone_no
+        phone_no,
+        lat != null ? Number(lat) : null,
+        long != null ? Number(long) : null,
       ]) as { insertId : number}; 
       return { message: 'Business added successfully', id: result?.insertId ?? 0 };
     } catch (error) {
@@ -241,7 +243,7 @@ export class AppCoreService {
         throw new BadRequestException('Valid businessId is required');
       }
       // const { id: userId } = await this.authenticateUser(email);
-      const { business_name, categoryId, subcategoryId, address, aboutUs, services_offered, gallery } = dto;
+      const { business_name, categoryId, subcategoryId, address, aboutUs, services_offered, gallery, lat, long } = dto;
       const existing = await this.db.query<{ user_id: number }[]>(
         'SELECT user_id FROM businesses WHERE id = ? LIMIT 1',
         [id],
@@ -279,6 +281,14 @@ export class AppCoreService {
       if (gallery !== undefined) {
         updates.push('gallery = ?');
         params.push(JSON.stringify(gallery));
+      }
+      if (lat !== undefined) {
+        updates.push('lat = ?');
+        params.push(lat != null ? Number(lat) : null);
+      }
+      if (long !== undefined) {
+        updates.push('`long` = ?');
+        params.push(long != null ? Number(long) : null);
       }
       if (updates.length === 0) {
         throw new BadRequestException('At least one field to update is required');
@@ -408,6 +418,27 @@ export class AppCoreService {
       console.error('Error deleting profile:', error);
       throw new InternalServerErrorException('Failed to delete profile');
     }
+  }
+
+  /** Get user info (name, email, phone_no) by userId. */
+  async getUserInfo(userId: number): Promise<{ name: string; email: string; phone_no: string | null }> {
+    const id = Number(userId);
+    if (!Number.isInteger(id) || id <= 0) {
+      throw new BadRequestException('Valid user is required');
+    }
+    const rows = await this.db.query<{ name: string; email: string; phoneno: string | null }[]>(
+      'SELECT name, email, phoneno FROM users WHERE id = ? LIMIT 1',
+      [id],
+    );
+    const row = Array.isArray(rows) ? rows[0] : undefined;
+    if (!row) {
+      throw new BadRequestException('User not found');
+    }
+    return {
+      name: row.name ?? '',
+      email: row.email ?? '',
+      phone_no: row.phoneno ?? null,
+    };
   }
 
   /** Update user info (name, email, phone_no). Only provided fields are updated. */
@@ -835,17 +866,20 @@ export class AppCoreService {
    * Payload: { cat?: string, subcat?: string } — at least one required.
    * Resolves category/subcategory IDs from names, then returns businesses with business_id, business_name, address, gallery, phone_no.
    */
-  async searchBusinessesByCategoryOrSubcategory(payload: { cat?: string; subcat?: string }): Promise<{
+  async searchBusinessesByCategoryOrSubcategory(payload: { cat?: string; subcat?: string; lat?: number; long?: number }): Promise<{
     businesses: Array<{
       business_id: number;
       business_name: string;
       address: string;
       gallery: string[];
       phone_no: string | null;
+      lat?: number | null;
+      long?: number | null;
+      distance_km?: number | null;
     }>;
   }> {
     console.log("payload: ", payload);
-    const { cat, subcat } = payload ?? {};
+    const { cat, subcat, lat: userLat, long: userLong } = payload ?? {};
     console.log("cat: ", cat);
     console.log("subcat: ", subcat);
     const hasCat = cat != null && String(cat).trim() !== '';
@@ -893,18 +927,48 @@ export class AppCoreService {
     }
     const whereClause = conditions.join(' OR ');
     console.log("whereClause: ", whereClause);
-    const rows = await this.db.query<any[]>(
-      `SELECT 
-        businesses.id as business_id,
+
+    const hasUserLocation =
+      userLat != null &&
+      userLong != null &&
+      !Number.isNaN(Number(userLat)) &&
+      !Number.isNaN(Number(userLong));
+    const uLat = hasUserLocation ? Number(userLat) : 0;
+    const uLong = hasUserLocation ? Number(userLong) : 0;
+
+    const selectFields = hasUserLocation
+      ? `businesses.id as business_id,
         businesses.business_name as business_name,
         businesses.address as address,
         businesses.gallery as gallery,
-        users.phoneno as phone_no
+        businesses.lat as lat,
+        businesses.\`long\` as long,
+        users.phoneno as phone_no,
+        ( 6371 * acos( LEAST(1, GREATEST(-1,
+          cos(radians(?)) * cos(radians(businesses.lat)) * cos(radians(businesses.\`long\`) - radians(?))
+          + sin(radians(?)) * sin(radians(businesses.lat))
+        ) ) ) ) AS distance_km`
+      : `businesses.id as business_id,
+        businesses.business_name as business_name,
+        businesses.address as address,
+        businesses.gallery as gallery,
+        businesses.lat as lat,
+        businesses.\`long\` as long,
+        users.phoneno as phone_no`;
+
+    const orderClause = hasUserLocation
+      ? 'ORDER BY distance_km IS NULL, distance_km ASC'
+      : 'ORDER BY businesses.id DESC';
+
+    const queryParams = hasUserLocation ? [uLat, uLong, uLat, ...params] : params;
+
+    const rows = await this.db.query<any[]>(
+      `SELECT ${selectFields}
       FROM businesses
       LEFT JOIN users ON businesses.user_id = users.id
       WHERE (${whereClause}) AND businesses.is_verified = 1
-      ORDER BY businesses.id DESC`,
-      params,
+      ${orderClause}`,
+      queryParams,
     );
 
     const businesses = (rows ?? []).map((row) => {
@@ -923,6 +987,9 @@ export class AppCoreService {
         address: row.address,
         gallery,
         phone_no: row.phone_no ?? null,
+        lat: row.lat != null ? Number(row.lat) : null,
+        long: row.long != null ? Number(row.long) : null,
+        ...(row.distance_km != null && { distance_km: Number(row.distance_km) }),
       };
     });
     console.log("businesses: ", businesses);

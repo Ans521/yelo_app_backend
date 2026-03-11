@@ -140,7 +140,7 @@ export class AppCoreController {
   @Post('search')
   @Public()
   @HttpCode(HttpStatus.OK)
-  async searchBusinesses(@Body() body: { cat?: string; subcat?: string }) {
+  async searchBusinesses(@Body() body: { cat?: string; subcat?: string; lat?: number; long?: number }) {
     return this.appCoreService.searchBusinessesByCategoryOrSubcategory(body);
   }
 
@@ -156,6 +156,7 @@ export class AppCoreController {
       subcatId != null || is_popular != null || is_recent != null
         ? { subcatId, is_popular, is_recent }
         : undefined;
+    console.log("filters: ", filters);
     return this.appCoreService.getAllBusinesses(filters);
   }
 
@@ -269,6 +270,18 @@ export class AppCoreController {
       throw new BadRequestException('BusinessId is Required')
     }
     return this.appCoreService.getBusinessById(Number(businessId));
+  }
+
+  @Get('get-user-info')
+  @UseGuards(UserGuard)
+  @HttpCode(HttpStatus.OK)
+  async getUserInfo(@Req() req: Request) {
+    const user = (req as any).user as { userId?: number };
+    const userId = user?.userId;
+    if (userId == null || userId === undefined) {
+      throw new BadRequestException('User not found');
+    }
+    return this.appCoreService.getUserInfo(userId);
   }
 
   @Post('delete-profile')
