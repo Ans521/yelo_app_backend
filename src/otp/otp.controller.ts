@@ -11,7 +11,8 @@ export class OtpController {
   @Public()
   @Post('get-otp')
   async getOtp(@Body() dto: GetOtpDto) {
-    return this.otpService.getOtp(dto.email);
+    console.log("getOtp payload", dto);
+    return this.otpService.getOtp(dto.email, dto.device_token);
   }
 
   @Public()

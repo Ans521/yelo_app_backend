@@ -12,6 +12,8 @@ import { AuthModule } from './auth/auth.module';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { OtpModule } from './otp/otp.module';
 import { RedisModule } from './redis/redis.module';
+import { FirebaseModule } from './firebase/firebase.module';
+
 
 @Module({
   imports: [
@@ -30,6 +32,7 @@ import { RedisModule } from './redis/redis.module';
     CoreModule,
     OtpModule,
     AdminModule,
+    FirebaseModule
   ],
   controllers: [AppController],
   providers: [

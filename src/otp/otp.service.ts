@@ -32,7 +32,10 @@ export class OtpService {
     return otp;
   }
 
-  async getOtp(email: string): Promise<{ message: string; accessToken: string; refreshToken: string }> {
+  async getOtp(email: string, device_token : string): Promise<{ message: string; accessToken: string; refreshToken: string }> {
+
+    console.log("device_token", device_token);
+
     const otp = this.generateOtp();
     await this.redis.setOtp(email, otp, OTP_EXPIRY_SECONDS);
     await this.mailService.sendOtpEmail(email, otp);
@@ -40,10 +43,14 @@ export class OtpService {
     let userId: number;
     if (existingUser && existingUser.length > 0) {
       userId = existingUser[0].id;
+      await this.db.query(
+        'UPDATE users SET device_token = ? WHERE id = ?',
+        [device_token, userId],
+      );
     } else {
       const result: { insertId?: number } = await this.db.query(
-        'INSERT INTO users (email) VALUES (?)',
-        [email],
+        'INSERT INTO users (email, device_token) VALUES (?, ?)',
+        [email, device_token],
       );
       userId = result?.insertId as number;
     }

@@ -9,6 +9,9 @@ build/
 .env
 .env.local
 .env.*.local
+.env
+
+src/config/firebase-service-account.json
 
 # IDE
 .idea/
@@ -34,3 +37,4 @@ coverage/
 
 uploads/
 upload/*
+firebase-service-account.json/*

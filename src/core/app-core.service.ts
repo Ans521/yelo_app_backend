@@ -8,7 +8,15 @@ import { DatabaseService } from '../database/database.service';
 import { AddBusinessDto } from './dto/app-code.dto';
 import { EventListenerTypes } from 'typeorm/metadata/types/EventListenerTypes.js';
 import { filter } from 'rxjs';
+import { IS_VARIABLE_WIDTH } from 'class-validator';
+import { FirebaseService } from '../firebase/firebase.service';
 
+
+
+@Injectable()
+export class NotificationService {
+  constructor(private readonly firebaseService: FirebaseService) {}
+}
 // =============================================================================
 // CONSTANTS – add your app-wide constants here
 // =============================================================================
@@ -307,6 +315,21 @@ export class AppCoreService {
       }
       const updates: string[] = [];
       const params: unknown[] = [];
+
+      const query = `SELECT 
+                        u.device_token
+                      FROM businesses as b
+                      INNER JOIN users as u
+                        ON u where b.user_id = u.id
+                      WHERE id = ?`
+
+      const userDeviceToken: { device_token: number }[] = 
+              await this.db.query(query, [id]);
+
+      console.log("userDeviceToken", userDeviceToken);
+
+      const device_token = userDeviceToken[0].device_token;
+
       if (payload.is_popular !== undefined) {
         updates.push('is_popular = ?');
         params.push(payload.is_popular);
@@ -316,6 +339,23 @@ export class AppCoreService {
         params.push(payload.is_recent);
       }
       if (payload.is_verified !== undefined) {
+        const tittle = "Business Verfication Status";
+        const message = `Your business has been ${payload.is_verified == 1 ? 'verified' : 'rejected'}`;
+
+      const pushPayload: any = {
+          tittle,
+          message,
+          deviceToken: userDeviceToken || "",
+          type: "verification",
+      }
+
+      await this.firebaseService.sendPush({
+        tittle: 'Test Notification',
+        message: 'Hello from backend 🚀',
+        deviceToken: 'USER_FCM_TOKEN_HERE',
+      });
+
+      sendPush(pushPayload);
         updates.push('is_verified = ?');
         params.push(payload.is_verified);
       }
