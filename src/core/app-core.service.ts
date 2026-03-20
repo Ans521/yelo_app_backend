@@ -6,17 +6,10 @@ import {
 } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { AddBusinessDto } from './dto/app-code.dto';
-import { EventListenerTypes } from 'typeorm/metadata/types/EventListenerTypes.js';
-import { filter } from 'rxjs';
-import { IS_VARIABLE_WIDTH } from 'class-validator';
 import { FirebaseService } from '../firebase/firebase.service';
 
 
 
-@Injectable()
-export class NotificationService {
-  constructor(private readonly firebaseService: FirebaseService) {}
-}
 // =============================================================================
 // CONSTANTS – add your app-wide constants here
 // =============================================================================
@@ -64,7 +57,10 @@ function parseServicesOffered(value: unknown): any[] {
 
 @Injectable()
 export class AppCoreService {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly firebaseService: FirebaseService,
+  ) {}
 
   /**
    * When a request comes with a token, pass the email (e.g. req.user.email).
@@ -316,19 +312,17 @@ export class AppCoreService {
       const updates: string[] = [];
       const params: unknown[] = [];
 
-      const query = `SELECT 
-                        u.device_token
-                      FROM businesses as b
-                      INNER JOIN users as u
-                        ON u where b.user_id = u.id
-                      WHERE id = ?`
+      const deviceTokenQuery = `SELECT u.device_token
+                      FROM businesses AS b
+                      INNER JOIN users AS u ON b.user_id = u.id
+                      WHERE b.id = ?`;
 
-      const userDeviceToken: { device_token: number }[] = 
-              await this.db.query(query, [id]);
+      const userDeviceToken: { device_token: string }[] =
+              await this.db.query(deviceTokenQuery, [id]);
 
       console.log("userDeviceToken", userDeviceToken);
 
-      const device_token = userDeviceToken[0].device_token;
+      const device_token = userDeviceToken?.[0]?.device_token || '';
 
       if (payload.is_popular !== undefined) {
         updates.push('is_popular = ?');
@@ -339,23 +333,16 @@ export class AppCoreService {
         params.push(payload.is_recent);
       }
       if (payload.is_verified !== undefined) {
-        const tittle = "Business Verfication Status";
+        const title = "Business Verification Status";
         const message = `Your business has been ${payload.is_verified == 1 ? 'verified' : 'rejected'}`;
 
-      const pushPayload: any = {
-          tittle,
+        await this.firebaseService.sendPush({
+          tittle: title,
           message,
-          deviceToken: userDeviceToken || "",
+          deviceToken: device_token,
           type: "verification",
-      }
+        });
 
-      await this.firebaseService.sendPush({
-        tittle: 'Test Notification',
-        message: 'Hello from backend 🚀',
-        deviceToken: 'USER_FCM_TOKEN_HERE',
-      });
-
-      sendPush(pushPayload);
         updates.push('is_verified = ?');
         params.push(payload.is_verified);
       }
@@ -863,6 +850,17 @@ export class AppCoreService {
    * Payload: { cat?: string, subcat?: string } — at least one required.
    * Resolves category/subcategory IDs from names, then returns businesses with business_id, business_name, address, gallery, phone_no.
    */
+  /** Send a notification to all users via FCM topic. */
+  async sendNotificationToAll(title: string, message: string): Promise<{ message: string }> {
+    try {
+      await this.firebaseService.sendPushToAll(title, message, 'all_users');
+      return { message: 'Notification sent to all users successfully' };
+    } catch (error) {
+      console.error('Error sending notification to all:', error);
+      throw new InternalServerErrorException('Failed to send notification');
+    }
+  }
+
   async searchBusinessesByCategoryOrSubcategory(payload: { cat?: string; subcat?: string; lat?: number; long?: number }): Promise<{
     businesses: Array<{
       business_id: number;

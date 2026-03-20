@@ -4,6 +4,7 @@ import { MailService } from '../mail/mail.service';
 import { RedisService } from '../redis/redis.service';
 import { DatabaseService } from '../database/database.service';
 import { AuthService } from '../auth/auth.service';
+import { FirebaseService } from '../firebase/firebase.service';
 
 const OTP_LENGTH = 4;
 const OTP_EXPIRY_SECONDS = 10 * 60; // 10 minutes
@@ -16,6 +17,7 @@ export class OtpService {
     private readonly configService: ConfigService,
     private readonly db: DatabaseService,
     private readonly authService: AuthService,
+    private readonly firebaseService: FirebaseService,
   ) {}
 
   private generateOtp(): string {
@@ -54,6 +56,10 @@ export class OtpService {
       );
       userId = result?.insertId as number;
     }
+    if (device_token) {
+      await this.firebaseService.subscribeToTopic(device_token, 'all_users');
+    }
+
     const { accessToken, refreshToken } = this.authService.issueTokenPair({
       userId,
       email,

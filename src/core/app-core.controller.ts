@@ -179,6 +179,20 @@ export class AppCoreController {
     return this.appCoreService.getCounts();
   }
 
+  @Post('send-notification')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  async sendNotification(@Body() body: { title?: string; message?: string }) {
+    const { title, message } = body;
+    if (!title || !title.trim()) {
+      throw new BadRequestException('title is required');
+    }
+    if (!message || !message.trim()) {
+      throw new BadRequestException('message is required');
+    }
+    return this.appCoreService.sendNotificationToAll(title.trim(), message.trim());
+  }
+
   @Post('update-business-flags')
   @Public()
   async updateBusinessFlags(
