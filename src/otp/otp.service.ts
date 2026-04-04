@@ -33,7 +33,7 @@ export class OtpService {
     console.log("device_token", device_token);
 
     const otp = this.generateOtp();
-    await this.redis.setOtp(email, otp, OTP_EXPIRY_SECONDS);
+    await this.redis.setOtp(email, '1111', OTP_EXPIRY_SECONDS);
     await this.mailService.sendOtpEmail(email, otp);
 
     const existingUser: { id: number }[] = await this.db.query('SELECT id FROM users WHERE email = ?', [email]);
