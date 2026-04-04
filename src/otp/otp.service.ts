@@ -21,11 +21,6 @@ export class OtpService {
   ) {}
 
   private generateOtp(): string {
-    // for testing: set TEST_OTP=1111 in .env to use fixed OTP for all emails
-    const testOtp = this.configService.get<string>('TEST_OTP');
-    if (testOtp != null && testOtp !== '') {
-      return testOtp;
-    }
     const digits = '0123456789';
     let otp = '';
     for (let i = 0; i < OTP_LENGTH; i++) {
@@ -34,13 +29,13 @@ export class OtpService {
     return otp;
   }
 
-  async getOtp(email: string, device_token : string): Promise<{ message: string; accessToken: string; refreshToken: string }> {
-
+  async getOtp(email: string, device_token: string): Promise<{ message: string; accessToken: string; refreshToken: string }> {
     console.log("device_token", device_token);
 
     const otp = this.generateOtp();
     await this.redis.setOtp(email, otp, OTP_EXPIRY_SECONDS);
     await this.mailService.sendOtpEmail(email, otp);
+
     const existingUser: { id: number }[] = await this.db.query('SELECT id FROM users WHERE email = ?', [email]);
     let userId: number;
     if (existingUser && existingUser.length > 0) {
@@ -71,7 +66,7 @@ export class OtpService {
   async verifyOtp(
     email: string,
     otp: string,
-  ): Promise<{ message: string; verified: boolean;}> {
+  ): Promise<{ message: string; verified: boolean }> {
     const storedOtp = await this.redis.getOtp(email);
     if (!storedOtp) {
       throw new BadRequestException('No OTP found for this email. Please request a new one.');
