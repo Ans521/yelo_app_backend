@@ -22,7 +22,7 @@ export function getOtpEmailTemplate(otp: string): string {
           If you didn't request this code, you can safely ignore this email.
         </p>
         <p style="margin: 20px 0 0 0; font-size: 13px; color: #a1a1aa;">
-          — Yelo App
+          — My नारायणगढ़
         </p>
       </td>
     </tr>

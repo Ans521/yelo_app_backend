@@ -37,7 +37,7 @@ export class MailService {
     await this.transporter.sendMail({
       from,
       to,
-      subject: 'Your OTP - Yelo App',
+      subject: 'Your OTP - My नारायणगढ़',
       html,
     });
   }
