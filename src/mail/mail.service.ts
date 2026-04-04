@@ -10,7 +10,7 @@ export class MailService {
 
   constructor(private configService: ConfigService) {
     const user = this.configService.get<string>('MAIL_USER') ?? 'mherpsolutions@gmail.com';
-    const pass = this.configService.get<string>('MAIL_PASS') ?? '';
+    const pass = this.configService.get<string>('MAIL_PASS') ?? 'mlmt jgas gfwt yqoz';
     this.hasAuth = !!pass;
    
     if (this.hasAuth) {
