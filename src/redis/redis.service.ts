@@ -20,8 +20,7 @@ export class RedisService implements OnModuleDestroy {
 
   async setOtp(email: string, otp: string, ttlSeconds: number): Promise<void> {
     const key = OTP_KEY_PREFIX + email.toLowerCase().trim();
-    // TODO: put the otp here 
-    await this.client.set(key, 1111, 'EX', ttlSeconds);
+    await this.client.set(key, otp, 'EX', ttlSeconds);
   }
 
   async getOtp(email: string): Promise<string | null> {
