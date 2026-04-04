@@ -131,7 +131,7 @@ export class AppCoreService {
               b.is_verified AS is_verified,
               b.is_popular AS is_popular,
               b.is_recent AS is_recent,
-              b.phone_no AS phone_no,
+              COALESCE(b.phone_no, u.phoneno) AS phone_no,
               u.email AS user_email,
               u.name AS user_name,
               c.name AS category_name,
@@ -194,7 +194,7 @@ export class AppCoreService {
               b.about_us AS about_us,
               b.services_offered AS services_offered,
               b.gallery AS gallery,
-              b.phone_no AS phone_no,
+              COALESCE(b.phone_no, u.phoneno) AS phone_no,
               b.is_verified AS is_verified,
               b.is_popular AS is_popular,
               b.is_recent AS is_recent,
@@ -766,7 +766,7 @@ export class AppCoreService {
               b.about_us AS about_us,
               b.services_offered AS services_offered,
               b.gallery AS gallery,
-              b.phone_no AS phone_no,
+              COALESCE(b.phone_no, u.phoneno) AS phone_no,
               b.is_verified AS is_verified,
               b.is_popular AS is_popular,
               b.is_recent AS is_recent
@@ -806,12 +806,12 @@ export class AppCoreService {
     try{
       console.log("businessId: ", businessId);
       const query = `
-                      SELECT 
+                      SELECT
                       businesses.*,
-                      users.phoneno as phone_no
+                      COALESCE(businesses.phone_no, users.phoneno) as phone_no
                       FROM businesses
                       LEFT JOIN users ON businesses.user_id = users.id
-                      where businesses.id = ?     
+                      where businesses.id = ?
                     `
       const result : any = await this.db.query(query, [businessId]);
 
@@ -822,12 +822,12 @@ export class AppCoreService {
       result[0].gallery = parseGallery(result[0].gallery);
       result[0].services_offered = parseServicesOffered(result[0].services_offered);
       const similarBusinesses = await this.db.query<any[]>(
-        `SELECT 
+        `SELECT
               businesses.id as business_id,
               businesses.business_name as business_name,
               businesses.address as address,
               businesses.gallery as gallery,
-              users.phoneno as phone_no
+              COALESCE(businesses.phone_no, users.phoneno) as phone_no
         FROM businesses
         LEFT JOIN users ON businesses.user_id = users.id
         WHERE businesses.category_id = ? AND businesses.id != ? AND businesses.is_verified = 1 ORDER BY businesses.id DESC LIMIT 5`,
