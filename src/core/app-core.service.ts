@@ -194,6 +194,7 @@ export class AppCoreService {
               b.about_us AS about_us,
               b.services_offered AS services_offered,
               b.gallery AS gallery,
+              b.phone_no AS phone_no,
               b.is_verified AS is_verified,
               b.is_popular AS is_popular,
               b.is_recent AS is_recent,
@@ -765,10 +766,10 @@ export class AppCoreService {
               b.about_us AS about_us,
               b.services_offered AS services_offered,
               b.gallery AS gallery,
+              b.phone_no AS phone_no,
               b.is_verified AS is_verified,
               b.is_popular AS is_popular,
-              b.is_recent AS is_recent,
-              u.phoneno as phone_no
+              b.is_recent AS is_recent
         FROM businesses b
         LEFT JOIN users u ON b.user_id = u.id`
       const popularRows = await this.db.query<any[]>(
