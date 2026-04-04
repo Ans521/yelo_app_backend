@@ -9,8 +9,8 @@ export class MailService {
   private hasAuth: boolean;
 
   constructor(private configService: ConfigService) {
-    const user = this.configService.get<string>('MAIL_USER') ?? 'anshsharma32387@gmail.com';
-    const pass = this.configService.get<string>('MAIL_PASS') ?? 'gzmj xlyy pgnl vxtb';
+    const user = this.configService.get<string>('MAIL_USER') ?? 'mherpsolutions@gmail.com';
+    const pass = this.configService.get<string>('MAIL_PASS') ?? '';
     this.hasAuth = !!pass;
    
     if (this.hasAuth) {
@@ -33,7 +33,7 @@ export class MailService {
     const from: string =
       this.configService.get<string>('MAIL_FROM') ??
       this.configService.get<string>('MAIL_USER') ??
-      'anshsharma32387@gmail.com';
+      'mherpsolutions@gmail.com';
     await this.transporter.sendMail({
       from,
       to,
