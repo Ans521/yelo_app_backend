@@ -195,6 +195,8 @@ export class AppCoreService {
               b.services_offered AS services_offered,
               b.gallery AS gallery,
               COALESCE(b.phone_no, u.phoneno) AS phone_no,
+              b.phone_no AS business_phone_no,
+              u.phoneno AS user_phoneno,
               b.is_verified AS is_verified,
               b.is_popular AS is_popular,
               b.is_recent AS is_recent,
